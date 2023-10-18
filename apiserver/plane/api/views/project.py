@@ -180,14 +180,6 @@ class ProjectViewSet(BaseViewSet):
                     projects, many=True
                 ).data,
             )
-            if request.GET.get("per_page", False) and request.GET.get("cursor", False):
-                return self.paginate(
-                    request=request,
-                    queryset=(projects),
-                    on_results=lambda projects: ProjectListSerializer(
-                        projects, many=True
-                    ).data,
-                )
 
         return Response(
             ProjectListSerializer(
