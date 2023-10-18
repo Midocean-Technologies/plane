@@ -14,9 +14,11 @@ import { Controller, useForm } from "react-hook-form";
 import WebViewLayout from "layouts/web-view-layout";
 
 // components
-import { TipTapEditor } from "components/tiptap";
-import { PrimaryButton } from "components/ui";
-import { Spinner } from "components/web-view";
+import { Button, Spinner } from "@plane/ui";
+import { RichTextEditor } from "@plane/rich-text-editor";
+// services
+import { FileService } from "services/file.service";
+const fileService = new FileService();
 
 const Editor: NextPage = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -52,32 +54,30 @@ const Editor: NextPage = () => {
           <Controller
             name="data_html"
             control={control}
-            render={({ field: { value, onChange } }) => (
-              <TipTapEditor
-                borderOnFocus={false}
-                value={
-                  !value ||
-                  value === "" ||
-                  (typeof value === "object" && Object.keys(value).length === 0)
-                    ? watch("data_html")
-                    : value
-                }
-                editable={isEditable}
-                noBorder={true}
-                workspaceSlug={workspaceSlug?.toString() ?? ""}
-                customClassName="h-full shadow-sm overflow-auto"
-                editorContentCustomClassNames="pb-9"
-                onChange={(description: Object, description_html: string) => {
-                  onChange(description_html);
-                  setValue("data_html", description_html);
-                  setValue("data", JSON.stringify(description));
-                }}
-              />
-            )}
+            render={({ field: { value, onChange } }) => {
+              if (value == null) return <></>;
+              return (
+                <RichTextEditor
+                  uploadFile={fileService.getUploadFileFunction(workspaceSlug as string)}
+                  deleteFile={fileService.deleteImage}
+                  borderOnFocus={false}
+                  value={!value || value === "" ? "<p></p>" : value}
+                  noBorder={true}
+                  customClassName="h-full shadow-sm overflow-auto"
+                  editorContentCustomClassNames="pb-9"
+                  onChange={(description: Object, description_html: string) => {
+                    onChange(description_html);
+                    setValue("data_html", description_html);
+                    setValue("data", JSON.stringify(description));
+                  }}
+                />
+              );
+            }}
           />
           {isEditable && (
-            <PrimaryButton
-              className="mt-4 w-[calc(100%-30px)] h-[45px] mx-[15px] text-[17px] my-[15px]"
+            <Button
+              variant="primary"
+              className="mt-4 w-[calc(100%-30px)] h-[45px] mx-[15px] text-[17px]"
               onClick={() => {
                 console.log(
                   "submitted",
@@ -88,7 +88,7 @@ const Editor: NextPage = () => {
               }}
             >
               Submit
-            </PrimaryButton>
+            </Button>
           )}
         </div>
       )}
