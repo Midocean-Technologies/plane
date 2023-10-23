@@ -1,12 +1,13 @@
-import { observable, action, computed, makeObservable, runInAction } from "mobx";
+import { observable, action, computed, makeObservable, runInAction, autorun } from "mobx";
 // store
 import { RootStore } from "../root";
-// types
-import { IIssue } from "types";
 // services
 import { ModuleService } from "services/module.service";
 // helpers
 import { sortArrayByDate, sortArrayByPriority } from "constants/kanban-helpers";
+// types
+import { IIssue } from "types";
+import { IBlockUpdateData } from "components/gantt-chart";
 
 export type IIssueType = "grouped" | "groupWithSubGroups" | "ungrouped";
 export type IIssueGroupedStructure = { [group_id: string]: IIssue[] };
@@ -34,6 +35,15 @@ export interface IModuleIssueStore {
   // action
   fetchIssues: (workspaceSlug: string, projectId: string, moduleId: string) => Promise<any>;
   updateIssueStructure: (group_id: string | null, sub_group_id: string | null, issue: IIssue) => void;
+  updateGanttIssueStructure: (
+    workspaceSlug: string,
+    moduleId: string,
+    issue: IIssue,
+    payload: IBlockUpdateData
+  ) => void;
+  deleteIssue: (group_id: string | null, sub_group_id: string | null, issue: IIssue) => void;
+  addIssueToModule: (workspaceSlug: string, projectId: string, moduleId: string, issueId: string) => Promise<any>;
+  removeIssueFromModule: (workspaceSlug: string, projectId: string, moduleId: string, bridgeId: string) => Promise<any>;
 }
 
 export class ModuleIssueStore implements IModuleIssueStore {
@@ -52,9 +62,10 @@ export class ModuleIssueStore implements IModuleIssueStore {
       ungrouped: IIssue[];
     };
   } = {};
-  // service
-  moduleService;
+
+  // services
   rootStore;
+  moduleService;
 
   constructor(_rootStore: RootStore) {
     makeObservable(this, {
@@ -68,9 +79,29 @@ export class ModuleIssueStore implements IModuleIssueStore {
       // actions
       fetchIssues: action,
       updateIssueStructure: action,
+      updateGanttIssueStructure: action,
+      deleteIssue: action,
+      addIssueToModule: action,
+      removeIssueFromModule: action,
     });
+
     this.rootStore = _rootStore;
     this.moduleService = new ModuleService();
+
+    autorun(() => {
+      const workspaceSlug = this.rootStore.workspace.workspaceSlug;
+      const projectId = this.rootStore.project.projectId;
+      const moduleId = this.rootStore.module.moduleId;
+
+      if (
+        workspaceSlug &&
+        projectId &&
+        moduleId &&
+        this.rootStore.moduleFilter.moduleFilters &&
+        this.rootStore.issueFilter.userDisplayFilters
+      )
+        this.fetchIssues(workspaceSlug, projectId, moduleId);
+    });
   }
 
   get getIssueType() {
@@ -151,16 +182,92 @@ export class ModuleIssueStore implements IModuleIssueStore {
     });
   };
 
+  updateGanttIssueStructure = async (
+    workspaceSlug: string,
+    moduleId: string,
+    issue: IIssue,
+    payload: IBlockUpdateData
+  ) => {
+    if (!issue || !workspaceSlug) return;
+
+    const issues = this.getIssues as IIssueUnGroupedStructure;
+
+    const newIssues = issues.map((i) => ({
+      ...i,
+      ...(i.id === issue.id
+        ? {
+            sort_order: payload.sort_order?.newSortOrder ?? i.sort_order,
+            start_date: payload.start_date,
+            target_date: payload.target_date,
+          }
+        : {}),
+    }));
+
+    if (payload.sort_order) {
+      const removedElement = newIssues.splice(payload.sort_order.sourceIndex, 1)[0];
+      removedElement.sort_order = payload.sort_order.newSortOrder;
+      newIssues.splice(payload.sort_order.destinationIndex, 0, removedElement);
+    }
+
+    runInAction(() => {
+      this.issues = {
+        ...this.issues,
+        [moduleId]: {
+          ...this.issues[moduleId],
+          ungrouped: newIssues,
+        },
+      };
+    });
+
+    const newPayload: any = { ...payload };
+
+    if (newPayload.sort_order && payload.sort_order) newPayload.sort_order = payload.sort_order.newSortOrder;
+
+    this.rootStore.issueDetail.updateIssue(workspaceSlug, issue.project, issue.id, newPayload);
+  };
+
+  deleteIssue = async (group_id: string | null, sub_group_id: string | null, issue: IIssue) => {
+    const moduleId: string | null = this.rootStore.module.moduleId;
+    const issueType = this.getIssueType;
+    if (!moduleId || !issueType) return null;
+
+    let issues: IIssueGroupedStructure | IIssueGroupWithSubGroupsStructure | IIssueUnGroupedStructure | null =
+      this.getIssues;
+    if (!issues) return null;
+
+    if (issueType === "grouped" && group_id) {
+      issues = issues as IIssueGroupedStructure;
+      issues = {
+        ...issues,
+        [group_id]: issues[group_id].filter((i) => i?.id !== issue?.id),
+      };
+    }
+    if (issueType === "groupWithSubGroups" && group_id && sub_group_id) {
+      issues = issues as IIssueGroupWithSubGroupsStructure;
+      issues = {
+        ...issues,
+        [sub_group_id]: {
+          ...issues[sub_group_id],
+          [group_id]: issues[sub_group_id][group_id].filter((i) => i?.id !== issue?.id),
+        },
+      };
+    }
+    if (issueType === "ungrouped") {
+      issues = issues as IIssueUnGroupedStructure;
+      issues = issues.filter((i) => i?.id !== issue?.id);
+    }
+
+    runInAction(() => {
+      this.issues = { ...this.issues, [moduleId]: { ...this.issues[moduleId], [issueType]: issues } };
+    });
+  };
+
   fetchIssues = async (workspaceSlug: string, projectId: string, moduleId: string) => {
     try {
       this.loader = true;
       this.error = null;
 
-      this.rootStore.workspace.setWorkspaceSlug(workspaceSlug);
-      this.rootStore.project.setProjectId(projectId);
-      this.rootStore.module.setModuleId(moduleId);
-
-      const params = this.rootStore?.cycleIssueFilter?.appliedFilters;
+      const params = this.rootStore?.moduleFilter?.appliedFilters;
       const issueResponse = await this.moduleService.getModuleIssuesWithParams(
         workspaceSlug,
         projectId,
@@ -190,6 +297,46 @@ export class ModuleIssueStore implements IModuleIssueStore {
       this.loader = false;
       this.error = error;
       return error;
+    }
+  };
+
+  addIssueToModule = async (workspaceSlug: string, projectId: string, moduleId: string, issueId: string) => {
+    try {
+      const user = this.rootStore.user.currentUser ?? undefined;
+
+      await this.moduleService.addIssuesToModule(
+        workspaceSlug,
+        projectId,
+        moduleId,
+        {
+          issues: [issueId],
+        },
+        user
+      );
+
+      this.fetchIssues(workspaceSlug, projectId, moduleId);
+    } catch (error) {
+      runInAction(() => {
+        this.loader = false;
+        this.error = error;
+      });
+
+      throw error;
+    }
+  };
+
+  removeIssueFromModule = async (workspaceSlug: string, projectId: string, moduleId: string, bridgeId: string) => {
+    try {
+      await this.moduleService.removeIssueFromModule(workspaceSlug, projectId, moduleId, bridgeId);
+    } catch (error) {
+      this.fetchIssues(workspaceSlug, projectId, moduleId);
+
+      runInAction(() => {
+        this.loader = false;
+        this.error = error;
+      });
+
+      throw error;
     }
   };
 }

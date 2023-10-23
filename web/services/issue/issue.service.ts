@@ -13,7 +13,7 @@ export class IssueService extends APIService {
     super(API_BASE_URL);
   }
 
-  async createIssues(workspaceSlug: string, projectId: string, data: any, user: IUser | undefined): Promise<any> {
+  async createIssue(workspaceSlug: string, projectId: string, data: any, user: IUser | undefined): Promise<any> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/`, data)
       .then((response) => {
         trackEventService.trackIssueEvent(response.data, "ISSUE_CREATE", user as IUser);
@@ -153,12 +153,14 @@ export class IssueService extends APIService {
       });
   }
 
-  async patchIssueDisplayProperties(
+  async updateIssueDisplayProperties(
     workspaceSlug: string,
     projectId: string,
     data: IIssueDisplayProperties
   ): Promise<any> {
-    return this.patch(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issue-display-properties/`, data)
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issue-display-properties/`, {
+      properties: data,
+    })
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

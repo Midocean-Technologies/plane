@@ -8,11 +8,16 @@ import { applyTheme, unsetCustomCssVariables } from "helpers/theme.helper";
 import { observer } from "mobx-react-lite";
 
 const MobxStoreInit = observer(() => {
+  // router
+  const router = useRouter();
+  const { workspaceSlug, projectId, cycleId, moduleId, globalViewId, viewId, inboxId } = router.query;
+  // store
   const {
     theme: themeStore,
     user: userStore,
     workspace: workspaceStore,
     project: projectStore,
+    cycle: cycleStore,
     module: moduleStore,
     globalViews: globalViewsStore,
     projectViews: projectViewsStore,
@@ -22,14 +27,11 @@ const MobxStoreInit = observer(() => {
   const [dom, setDom] = useState<any>();
   // theme
   const { setTheme } = useTheme();
-  // router
-  const router = useRouter();
-  const { workspaceSlug, projectId, moduleId, globalViewId, viewId, inboxId } = router.query;
 
-  // const dom = useMemo(() => window && window.document?.querySelector<HTMLElement>("[data-theme='custom']"), [document]);
-
+  /**
+   * Sidebar collapsed fetching from local storage
+   */
   useEffect(() => {
-    // sidebar collapsed toggle
     const localValue = localStorage && localStorage.getItem("app_sidebar_collapsed");
     const localBoolValue = localValue ? (localValue === "true" ? true : false) : false;
     if (localValue && themeStore?.sidebarCollapsed === undefined) {
@@ -37,6 +39,9 @@ const MobxStoreInit = observer(() => {
     }
   }, [themeStore, userStore, setTheme]);
 
+  /**
+   * Setting up the theme of the user by fetching it from local storage
+   */
   useEffect(() => {
     if (!userStore.currentUser) return;
     if (window) {
@@ -44,14 +49,17 @@ const MobxStoreInit = observer(() => {
     }
     setTheme(userStore.currentUser?.theme?.theme || "system");
     if (userStore.currentUser?.theme?.theme === "custom" && dom) {
-      console.log("userStore.currentUser?.theme?.theme", userStore.currentUser?.theme);
       applyTheme(userStore.currentUser?.theme?.palette, false);
     } else unsetCustomCssVariables();
   }, [userStore.currentUser, setTheme, dom]);
 
+  /**
+   * Setting router info to the respective stores.
+   */
   useEffect(() => {
     if (workspaceSlug) workspaceStore.setWorkspaceSlug(workspaceSlug.toString());
     if (projectId) projectStore.setProjectId(projectId.toString());
+    if (cycleId) cycleStore.setCycleId(cycleId.toString());
     if (moduleId) moduleStore.setModuleId(moduleId.toString());
     if (globalViewId) globalViewsStore.setGlobalViewId(globalViewId.toString());
     if (viewId) projectViewsStore.setViewId(viewId.toString());
@@ -59,12 +67,14 @@ const MobxStoreInit = observer(() => {
   }, [
     workspaceSlug,
     projectId,
+    cycleId,
     moduleId,
     globalViewId,
     viewId,
     inboxId,
     workspaceStore,
     projectStore,
+    cycleStore,
     moduleStore,
     globalViewsStore,
     projectViewsStore,
