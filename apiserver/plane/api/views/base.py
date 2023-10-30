@@ -47,18 +47,18 @@ class WebhookMixin:
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
 
-        if (
-            self.webhook_event
-            and self.request.method in ["POST", "PATCH", "DELETE"]
-            and response.status_code in [200, 201, 204]
-            and settings.ENABLE_WEBHOOK_API
-        ):
-            send_webhook.delay(
-                event=self.webhook_event,
-                event_data=json.dumps(response.data, cls=DjangoJSONEncoder),
-                action=self.request.method,
-                slug=self.workspace_slug,
-            )
+        # if (
+        #     self.webhook_event
+        #     and self.request.method in ["POST", "PATCH", "DELETE"]
+        #     and response.status_code in [200, 201, 204]
+        #     and settings.ENABLE_WEBHOOK_API
+        # ):
+        #     send_webhook.delay(
+        #         event=self.webhook_event,
+        #         event_data=json.dumps(response.data, cls=DjangoJSONEncoder),
+        #         action=self.request.method,
+        #         slug=self.workspace_slug,
+        #     )
 
         return response
 
