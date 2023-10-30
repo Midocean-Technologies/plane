@@ -24,7 +24,7 @@ from rest_framework import status
 from sentry_sdk import capture_exception
 
 # Module imports
-from . import BaseViewSet, BaseAPIView
+from . import BaseViewSet, BaseAPIView, WebhookMixin
 from plane.api.serializers import (
     CycleSerializer,
     CycleIssueSerializer,
@@ -49,9 +49,10 @@ from plane.utils.issue_filters import issue_filters
 from plane.utils.analytics_plot import burndown_plot
 
 
-class CycleViewSet(BaseViewSet):
+class CycleViewSet(WebhookMixin, BaseViewSet):
     serializer_class = CycleSerializer
     model = Cycle
+    webhook_event = "cycle"
     permission_classes = [
         ProjectEntityPermission,
     ]
@@ -533,10 +534,10 @@ class CycleViewSet(BaseViewSet):
             )
 
 
-class CycleIssueViewSet(BaseViewSet):
+class CycleIssueViewSet(WebhookMixin, BaseViewSet):
     serializer_class = CycleIssueSerializer
     model = CycleIssue
-
+    webhook_event = "cycle"
     permission_classes = [
         ProjectEntityPermission,
     ]
