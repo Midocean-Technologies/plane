@@ -53,11 +53,7 @@ urlpatterns = [
 ]
 
 if settings.ENABLE_WEBHOOK_API:
-    urlpatterns.append(
-        *webhook_urls,
-    )
+    urlpatterns = urlpatterns + webhook_urls
 
 if settings.ENABLE_WEBHOOK_API and settings.BASE_API_URL:
-    urlpatterns.append(
-        *api_urls,
-    )
+    urlpatterns = urlpatterns + api_urls
